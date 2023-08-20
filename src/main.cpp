@@ -1,7 +1,8 @@
 #include <iostream>
+#include <vector>
+#include "sl_lidar.h"
 
-#include "sl_lidar.h" 
-
+#include <plotter.h>
 
 using namespace sl;
 
@@ -10,7 +11,12 @@ using namespace sl;
 #endif
 
 #define LIDAR_PORT "/dev/ttyUSB0"
-#define BUF_SIZE 8192
+#define BUF_SIZE 10000
+
+constexpr float brad_to_rad(float angle)
+{
+    return angle * 3.14f / (16384.f * 2);
+}
 
 int main(void)
 {
@@ -50,6 +56,10 @@ int main(void)
             deviceInfo.hardware_version);
             std::cout << "----------------------------\n\n";
 
+            std::cout << "Initializing Plotter...\n";
+
+            rplidar::plotter plotter;
+
             // start scanning
             lidar->startScan(false, true);
 
@@ -60,14 +70,33 @@ int main(void)
 
             if (SL_IS_OK(res))
             {
+                std::valarray<sl_lidar_response_measurement_node_hq_t> node_data(nodes, BUF_SIZE);
+
                 // print out all scan_data
+                // for (int pos = 0; pos < (int)count ; ++pos) {
+                //     printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
+                //         (nodes[pos].flag & SL_LIDAR_RESP_HQ_FLAG_SYNCBIT) ?"S ":"  ", 
+                //         brad_to_rad(nodes[pos].angle_z_q14),
+                //         nodes[pos].dist_mm_q2/4.0f,
+                //         nodes[pos].quality >> SL_LIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
+
+                    
+                // }
+
+                std::vector<float> thetas_vec, dists_vec;
+
                 for (int pos = 0; pos < (int)count ; ++pos) {
-                    printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
-                        (nodes[pos].flag & SL_LIDAR_RESP_HQ_FLAG_SYNCBIT) ?"S ":"  ", 
-                        (nodes[pos].angle_z_q14 * 90.f) / 16384.f,
-                        nodes[pos].dist_mm_q2/4.0f,
-                        nodes[pos].quality >> SL_LIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
+                    thetas_vec.push_back(brad_to_rad(nodes[pos].angle_z_q14));
+
+                    dists_vec.push_back(nodes[pos].dist_mm_q2 / 4.0f);
                 }
+
+                std::valarray<float> thetas(thetas_vec.data(), thetas_vec.size());
+                std::valarray<float> dists(dists_vec.data(), dists_vec.size());
+
+                plotter.plot_data(thetas, dists);
+                plotter.show();
+
             }
             else
             {
